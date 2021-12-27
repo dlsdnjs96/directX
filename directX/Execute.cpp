@@ -14,7 +14,7 @@ Execute::Execute()
 
 	// vertex data
 	{
-		vertices = new VertexColor[6];
+		vertices = new VertexColor[4];
 		vertices[0].position = D3DXVECTOR3(-0.5f, -0.5f, 0.0f);
 		vertices[0].color = D3DXCOLOR(1.0f, 0.0f, 0.0f, 1.0f);
 
@@ -24,14 +24,8 @@ Execute::Execute()
 		vertices[2].position = D3DXVECTOR3(0.5f, -0.5f, 0.0f);
 		vertices[2].color = D3DXCOLOR(0.0f, 0.0f, 1.0f, 1.0f);
 
-		vertices[3].position = D3DXVECTOR3(0.5f, -0.5f, 0.0f);
-		vertices[3].color = D3DXCOLOR(1.0f, 0.0f, 0.0f, 1.0f);
-
-		vertices[4].position = D3DXVECTOR3(-0.5f, 0.5f, 0.0f);
-		vertices[4].color = D3DXCOLOR(0.0f, 1.0f, 0.0f, 1.0f);
-
-		vertices[5].position = D3DXVECTOR3(0.5f, 0.5f, 0.0f);
-		vertices[5].color = D3DXCOLOR(0.0f, 0.0f, 1.0f, 1.0f);
+		vertices[3].position = D3DXVECTOR3(0.5f, 0.5f, 0.0f);
+		vertices[3].color = D3DXCOLOR(0.0f, 0.0f, 1.0f, 1.0f);
 	}
 
 	//vertex Buffer
@@ -41,7 +35,7 @@ Execute::Execute()
 
 		desc.Usage = D3D11_USAGE_IMMUTABLE;
 		desc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-		desc.ByteWidth = sizeof(VertexColor) * 6;
+		desc.ByteWidth = sizeof(VertexColor) * 4;
 		
 		D3D11_SUBRESOURCE_DATA sub_data;
 		ZeroMemory(&sub_data, sizeof(D3D11_SUBRESOURCE_DATA));
@@ -49,6 +43,29 @@ Execute::Execute()
 
 		auto hr = graphics->GetDevice()->CreateBuffer(&desc, &sub_data, &vertex_buffer);
 		assert(SUCCEEDED(hr));
+	}
+
+	// Index Data
+	{
+		indices = new uint[6]{ 0, 1, 2, 2, 1, 3 };
+	}
+
+	// Index Buffer
+	{
+		D3D11_BUFFER_DESC desc;
+		ZeroMemory(&desc, sizeof(D3D11_BUFFER_DESC));
+
+		desc.Usage = D3D11_USAGE_IMMUTABLE;
+		desc.BindFlags = D3D11_BIND_INDEX_BUFFER;
+		desc.ByteWidth = sizeof(uint) * 6;
+
+		D3D11_SUBRESOURCE_DATA sub_data;
+		ZeroMemory(&sub_data, sizeof(D3D11_SUBRESOURCE_DATA));
+		sub_data.pSysMem = indices;
+
+		auto hr = graphics->GetDevice()->CreateBuffer(&desc, &sub_data, &index_buffer);
+		assert(SUCCEEDED(hr));
+
 	}
 
 	/// Vertex Shader
@@ -120,6 +137,36 @@ Execute::Execute()
 		);
 		assert(SUCCEEDED(hr));
 	}
+
+	// Create World View Projection
+	{
+		D3DXMatrixIdentity(&world);
+		D3DXMatrixIdentity(&view);
+		D3DXMatrixIdentity(&projection);
+
+		D3DXVECTOR3 v1 = D3DXVECTOR3(0, 0, 0);
+		D3DXVECTOR3 v2 = D3DXVECTOR3(0, 0, 1);
+		D3DXVECTOR3 v3 = D3DXVECTOR3(0, 1, 0);
+		D3DXMatrixLookAtLH(&view, &v1, &v2, &v3);
+		D3DXMatrixOrthoLH(&projection, Settings::Get().GetWidth(), Settings::Get().GetHeight(), 0, 1);
+
+		// Perspective : 원금감이 느껴지는 방식
+		// Orthographic	: 원금감이 없는 방식
+
+		std::cout << "View Matrix" << std::endl;
+		std::cout << view._11 << " " << view._12 << " " << view._13 << " " << view._14 << std::endl;
+		std::cout << view._21 << " " << view._22 << " " << view._23 << " " << view._24 << std::endl;
+		std::cout << view._31 << " " << view._32 << " " << view._33 << " " << view._34 << std::endl;
+		std::cout << view._41 << " " << view._42 << " " << view._43 << " " << view._44 << std::endl;
+
+		std::cout << std::endl;
+
+		std::cout << "Projection Matrix" << std::endl;
+		std::cout << projection._11 << " " << projection._12 << " " << projection._13 << " " << projection._14 << std::endl;
+		std::cout << projection._21 << " " << projection._22 << " " << projection._23 << " " << projection._24 << std::endl;
+		std::cout << projection._31 << " " << projection._32 << " " << projection._33 << " " << projection._34 << std::endl;
+		std::cout << projection._41 << " " << projection._42 << " " << projection._43 << " " << projection._44 << std::endl;
+	}
 }
 
 Execute::~Execute()
@@ -132,9 +179,12 @@ Execute::~Execute()
 	SAFE_RELEASE(vertex_shader);
 	SAFE_RELEASE(vs_blob);
 
-	SAFE_RELEASE(vertex_buffer);
+	SAFE_RELEASE(index_buffer);
+	SAFE_DELETE_ARRAY(indices);
 
+	SAFE_RELEASE(vertex_buffer);
 	SAFE_DELETE_ARRAY(vertices);
+
 	SAFE_DELETE(graphics);
 }
 
@@ -151,6 +201,7 @@ void Execute::Render()
 	{
 		/// IA
 		graphics->GetDeviceContext()->IASetVertexBuffers(0, 1, &vertex_buffer, &stride, &offset);
+		graphics->GetDeviceContext()->IASetIndexBuffer(index_buffer, DXGI_FORMAT_R32_UINT, 0);
 		graphics->GetDeviceContext()->IASetInputLayout(input_layout);
 		graphics->GetDeviceContext()->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
@@ -160,7 +211,7 @@ void Execute::Render()
 		/// PS
 		graphics->GetDeviceContext()->PSSetShader(pixel_shader, nullptr, 0);
 
-		graphics->GetDeviceContext()->Draw(6, 0);
+		graphics->GetDeviceContext()->DrawIndexed(6, 0, 0);
 	}
 	graphics->End();
 }
